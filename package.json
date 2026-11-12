@@ -1,0 +1,60 @@
+{
+  "name": "antd-loop-time-picker",
+  "version": "0.1.0",
+  "description": "Looping (infinite scroll) time picker for Ant Design, built for touch screen devices.",
+  "author": "Hollaptus <208760082+Hollaptus@users.noreply.github.com>",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsup && node scripts/copy-assets.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "homepage": "https://github.com/Hollaptus/antd-loop-time-picker#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hollaptus/antd-loop-time-picker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hollaptus/antd-loop-time-picker/issues"
+  },
+  "keywords": [
+    "antd",
+    "ant-design",
+    "timepicker",
+    "time-picker",
+    "infinite-scroll",
+    "react",
+    "mobile",
+    "dayjs"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./style.css": "./dist/style.css",
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "sideEffects": ["**/*.css"],
+  "devDependencies": {
+    "antd": "^5.27.6",
+    "dayjs": "^1.11.23",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tsup": "^9.0.0"
+  },
+  "peerDependencies": {
+    "antd": "^5.27.6",
+    "dayjs": "^1.11.13",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
