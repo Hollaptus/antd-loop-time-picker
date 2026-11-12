@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "antd-loop-time-picker",
   "version": "0.1.0",
   "description": "Looping (infinite scroll) time picker for Ant Design, built for touch screen devices.",
@@ -34,19 +35,27 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
     },
     "./style.css": "./dist/style.css",
     "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md", "LICENSE"],
-  "sideEffects": ["**/*.css"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
   "devDependencies": {
     "antd": "^5.27.6",
     "dayjs": "^1.11.23",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "tsup": "^9.0.0"
+    "tsup": "^9.0.0",
+    "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "antd": "^5.27.6",
