@@ -124,8 +124,15 @@ export interface LoopTimePickerProps extends Omit<TimePickerProps, OverriddenPro
 
     /**
      * Additional CSS class for the popup panel.
+     * @deprecated Deprecated in Ant Design 5.25+. Use `classNames={{ popup: { root: '...' } }}` instead.
      */
     popupClassName?: string;
+
+    /**
+     * Semantic DOM class names for the TimePicker.
+     * Recommended way to pass custom classes to the popup: `classNames={{ popup: { root: '...' } }}`
+     */
+    classNames?: TimePickerProps["classNames"];
 
     /**
      * Additional content in the panel footer.

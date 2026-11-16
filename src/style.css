@@ -1,5 +1,7 @@
-/* LoopTimePicker - popup styles (copied from the previous implementation, they ensure
-   instant swipe start on mobile and hiding the scrollbar). */
+/* 
+ * LoopTimePicker - popup styles (they ensure instant 
+ * swipe start on mobile and hiding the scrollbar). 
+ */
 
 /* Stretch the panels to full width. */
 .loop-timepicker .ant-picker-panel {
@@ -20,7 +22,7 @@
 }
 
 /*
- * min-width 0 removes the Ant Design limitation of 56px, allowing the columns to shrink.
+ * flex-basis 80px and min-width 60px let the columns share the panel width equally and shrink below AntD's fixed column width.
  * overflow-y auto enables vertical scrolling; without it mobile scroll does not work.
  * overscroll-behavior and touch-action prevent page scroll during a swipe.
  * scrollbar-width and ::-webkit-scrollbar hide the scrollbar.
@@ -41,6 +43,10 @@
   scroll-snap-type: y proximity !important;
 }
 
+.loop-timepicker .ant-picker-time-panel-column::-webkit-scrollbar {
+  display: none;
+}
+
 .loop-timepicker .ant-picker-time-panel-cell {
   width: 100% !important;
   padding: 0 !important;
@@ -59,18 +65,28 @@
   box-sizing: border-box !important;
 }
 
+/* 
+ * "Now" is a <button> styled like the AntD link. Colors come from the active
+ * AntD theme tokens (set inline as CSS variables).
+ */
 .loop-timepicker .ant-picker-now-btn {
   background: none;
   border: 0;
   padding: 0;
   margin: 0;
   font: inherit;
-  cursor: pointer;
   text-decoration: none;
+  cursor: pointer;
+  color: var(--ltp-link);
+  transition: color 0.2s;
+}
+
+.loop-timepicker .ant-picker-now-btn:hover:not(:disabled) {
+  color: var(--ltp-link-hover);
 }
 
 .loop-timepicker button.ant-picker-now-btn:disabled {
-  color: var(--ant-color-text-disabled, rgba(0, 0, 0, 0.25));
+  color: var(--ltp-disabled);
   cursor: not-allowed;
 }
 

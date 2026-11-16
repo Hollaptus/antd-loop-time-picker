@@ -5,12 +5,18 @@
 // Idea: each column is rendered in three copies [left][original][right].
 // When the user scrolls to the edge of one copy, scrollTop is silently
 // shifted by the height of one copy - visually the scroll is infinite.
-// The AntD panel is fully replaced, so AntD's own onOk/onChange
-// are used only as a transport for manual input in the input field (editable).
+// 
+// NOTE:
+// AntD's own onOk/onChange are used only as a transport for manual input, 
+// thus AntD's own onChange is used only for clearing (allowClear) and
+// for manual input in the input field (editable).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, useImperativeHandle, useContext } from "react";
-import { TimePicker, Button, ConfigProvider } from "antd";
+import { TimePicker, Button, ConfigProvider, theme } from "antd";
 import dayjs from "dayjs";
+
+// Warning on an incorrect locale setup.
+const localeWarning = { shown: false };
 
 // Pads a number with a leading zero up to two digits.
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -21,16 +27,25 @@ const ITEM_HEIGHT = 28;
 // How many rows are visible in the column at once.
 const VISIBLE_ITEMS = 8;
 
-// How many copies of the list to render. 3 = [left][original][right], the minimum sufficient for a seamless loop in both directions. More - wasted memory, less - not allowed.
+// How many copies of the list to render. 3 = [left][original][right], 
+// the minimum sufficient for a seamless loop in both directions. 
+// Fewer than 3 copies cannot give a seamless loop in both directions. 
+// The loop assumes items.length >= VISIBLE_ITEMS; shorter columns are not looped (and not scrollable)
 const COPIES = 3;
 
 // After how many ms of scroll stop the position is considered "settled" and the selection is accepted (for changeOnScroll and for snap-to-center).
 // 180 ms - empirical: less - snaps during inertia, more - feels laggy.
 const SCROLL_SETTLE_DELAY = 180;
 
+// Keys that scroll a focused column. Tab is intentionally not included:
+// it only moves focus and must not be treated as a scroll.
+const SCROLL_KEYS = ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "];
+
 /**
  * Returns localized AM/PM labels for the given locale.
- * Uses Intl rather than dayjs because the dayjs locale may return English "AM"/"PM" even if the main locale format is different (e.g., the Russian dayjs locale does not override dayPeriod).
+ * Uses Intl (CLDR) rather than dayjs: some dayjs locales (e.g. Russian) return
+ * a different label depending on the hour (night/morning/day/evening), while
+ * the AM/PM column needs one fixed label per half of the day.
  * Note:
  * If Intl throws (old browsers, bad localeTag) - silently fall back to ["AM", "PM"].
  */
@@ -56,7 +71,8 @@ const getAmPmLabels = (localeTag) => {
  * the format itself determines the 12-hour mode by the presence of "a"/"A".
  *
  * `bare` - format without escaped literals like [text], so that
- * the letters H/h/m/s/a inside [..] are not treated as tokens (e.g., "[Today] HH:mm" must not yield showSecond from the 'a' in "Today").
+ * the letters H/h/m/s/a inside [..] are not treated as tokens 
+ * ("[at] HH:mm" must not turn on 12-hour mode because of the 'a' in "at".).
  */
 const parseFormat = (format, use12Prop) => {
   // Default format: 12h if 12h was explicitly requested, otherwise 24h with seconds.
@@ -84,9 +100,8 @@ const buildMinuteSecondOptions = (step) => {
 
 /**
  * Builds the hour array taking into account the step and 12/24 mode.
- * In 12 mode: 12, 1, 2, ..., 11, 12? - no: 12, 1, 2, ..., 11
- * (that is, `i*s === 0 ? 12 : i*s`) - the classic AM/PM view, where
- * 0 hours is displayed as 12.
+ * In 12h mode hour 0 is shown as 12: 12, 1, 2, ..., 11 
+ * (with step 2: 12, 2, 4, ...).
  */
 const buildHourOptions = (step, use12) => {
   const s = step > 0 ? step : 1;
@@ -164,6 +179,12 @@ const LoopColumn = ({
   // (not on <li>, so a click on a row is not treated as "scroll").
   const onPointerDown = useCallback((e) => {
     if (e.target === e.currentTarget) markUser();
+  }, [markUser]);
+  // Keyboard scrolling of a focused column counts as user scroll too,
+  // otherwise changeOnScroll and our snap-to-center would ignore it.
+  const onKeyDown = useCallback((e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (SCROLL_KEYS.includes(e.key)) markUser();
   }, [markUser]);
 
   // Index of the selected element in the original (not multiplied) list.
@@ -320,11 +341,12 @@ const LoopColumn = ({
       className={`ant-picker-time-panel-column${looped ? "" : " loop-column-static"}`}
       style={{ height: containerHeight }}
       onScroll={handleScroll}
-      // Any finger/wheel movement is marked as "user scroll".
+      // Any finger/wheel movement or specific key presses are marked as "user scroll".
       // This lets us distinguish programmatic snap from a real action.
       onTouchMove={markUser}
       onWheel={markUser}
       onPointerDown={onPointerDown}
+      onKeyDown={onKeyDown}
     >
       {renderedItems}
     </ul>
@@ -337,9 +359,11 @@ const LoopColumn = ({
 // now: () => dayjs - a "current moment" factory for dayjs.utc/dayjs.tz mode, e.g. now={() => dayjs.utc()}.
 // The value in utc/tz mode must be passed as a dayjs object: strings and Dates are treated as local time.
 //
-// IMPORTANT: rc-picker blocks auto-commit-on-close only with needConfirm={true}
-// + no onOk. If onOk is added "just in case" - AntD will start committing the stale value
-// (draft) when the panel closes and overwrite input.value. See <TimePicker> at the end for details.
+// NOTE: when the panel closes, rc-picker still emits onChange with the value it was opened with
+// (its own draft). needConfirm={true} does not prevent this; the guards inside onChange do
+// (null/undefined checks and openedTimeRef). onOk is intentionally not passed to <TimePicker>:
+// in our tests (antd 5.27.6) it was never called, neither on Enter nor on close; the effect of
+// passing it was not verified. Re-check this when upgrading antd.
 const LoopTimePicker = React.forwardRef((props, ref) => {
   const {
     value: valueProp,
@@ -374,7 +398,7 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
   // (the parent may pass a new factory on each render).
   const nowRef = useRef(nowProp);
   nowRef.current = nowProp;
-  // Returns the "current moment" in the required mode (loc/utc/tz).
+  // Returns the "current moment" in the required mode (local/utc/tz).
   // Stable by identity - safe to include in deps.
   const getNow = useCallback(() => (nowRef.current ? nowRef.current() : dayjs()), []);
 
@@ -394,7 +418,6 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
   // (the user selected something new), we recreate the inner TimePicker.
   // This resets AntD's internal draft, otherwise it overwrites input.value
   // with its stale value on the next render.
-  // Recreate only on the open: true -> false transition, not on every render.
   const [pickerKey, setPickerKey] = useState(0);
   const committedMs = committedValue ? committedValue.valueOf() : null;
   const syncedMsRef = useRef(committedMs);
@@ -431,7 +454,6 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
    *   - disabled on the "Now" and OK buttons
    *   - guard in their onClick (race between render and click)
    *   - guard in TimePicker.onChange (manual input)
-   *   - normalizeAfterChange (indirectly, via disabledConfig)
    *
    * IMPORTANT: called many times per render (isDisabledValue for "Now", for OK,
    * plus inside disabledConfig and hourOptions). If disabledTime is heavy
@@ -580,9 +602,7 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
 
       setPendingValue(next);
       // needConfirm={false} - commit immediately; otherwise wait for OK.
-      if (needConfirm === false) {
-        commitValue(next);
-      }
+      if (needConfirm === false && !isDisabledValue(next)) commitValue(next);
     },
     [pendingValue, committedValue, effectiveUse12, needConfirm, commitValue, normalizeAfterChange, getNow]
   );
@@ -672,15 +692,18 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
   // AntD locale for the "Now"/"OK" texts and for the AM/PM labels.
   const context = useContext(ConfigProvider.ConfigContext);
   const antdLocale = context?.locale;
+  // Token for applying the AntD's theme on non-standard components.
+  const { token } = theme.useToken();
 
   // Checking if the locale is passed correctly for the environment,
   // and warning the developer if that is not the case.
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production" && antdLocale?.default) {
+    if (process.env.NODE_ENV !== "production" && antdLocale?.default && !localeWarning.shown) {
+      localeWarning.shown = true;
       console.warn(
         "[LoopTimePicker] The AntD locale is wrapped in a 'default' object. " +
         "This usually happens in Vite when importing CJS locales. " +
-        "Please use 'antd/es/locale/{lang}' or unwrap it: 'const locale = {lang}.default || {lang}'. " +
+        "Please use 'antd/es/locale/<lang>' or unwrap it: 'const locale = <lang>.default || <lang>'. " +
         "Your placeholders and button texts might be in English until this is fixed."
       );
     }
@@ -782,6 +805,11 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
                       <button
                         type="button"
                         className="ant-picker-now-btn"
+                        style={{
+                          "--ltp-link": token.colorLink,
+                          "--ltp-link-hover": token.colorLinkHover,
+                          "--ltp-disabled": token.colorTextDisabled,
+                        }}
                         // disabled based on the current moment: if "now" falls
                         // into disabledTime - the button is greyed out.
                         // IMPORTANT: dayjs/getNow is evaluated on every render - on the boundary
@@ -857,13 +885,14 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
       okText,
       isDisabledValue,
       getNow,
+      token.colorLink,
+      token.colorLinkHover,
+      token.colorTextDisabled,
     ]
   );
 
-  // Close on outside click.
-  // pointerdown in the capture phase - before onclick, to beat AntD's handlers.
-  // Ignore clicks inside the input (pickerRef.nativeElement) and inside the popup
-  // (.ant-picker-dropdown) - they have their own handlers.
+  // Close when a pointer press or keyboard focus lands outside the input and the popup.
+  // focusin covers Tab: rc-picker's own close-on-blur is ignored (see onOpenChange below).
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e) => {
@@ -874,7 +903,11 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
       setOpenState(false);
     };
     document.addEventListener("pointerdown", handler, true);
-    return () => document.removeEventListener("pointerdown", handler, true);
+    document.addEventListener("focusin", handler, true);
+    return () => {
+      document.removeEventListener("pointerdown", handler, true);
+      document.removeEventListener("focusin", handler, true);
+    };
   }, [isOpen, setOpenState]);
 
   // Close on Escape. stopPropagation - to avoid closing the parent modal.
@@ -904,8 +937,8 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
        *   - clearing (v === null) via allowClear
        *   - manual typing into the input (editable=true)
        * In the normal mode (readOnly) the panel is replaced with panelRender,
-       * so onChange from AntD must not fire (needConfirm={true} + no onOk
-       * block auto-commit-on-close).
+       * so onChange from AntD must not fire (see the note above the component
+       * for details on rc-picker's stale onChange behavior).
        */
       onChange={(v) => {
         // Explicit clear (the cross) arrives as null.
@@ -938,7 +971,17 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
       onOpenChange={(newOpen) => {
         if (newOpen) setOpenState(true);
       }}
-      popupClassName={`loop-timepicker ${popupClassName || ""}`.trim()}
+      classNames={{
+        ...rest.classNames,
+        popup: {
+          ...rest.classNames?.popup,
+          root: [
+            "loop-timepicker",
+            popupClassName,
+            rest.classNames?.popup?.root
+          ].filter(Boolean).join(" "),
+        },
+      }}
       // In readOnly mode use displayFormat (with localized AM/PM),
       // in editable - the raw format so the AntD parser can parse the input.
       format={editable ? format : displayFormat}
@@ -946,15 +989,10 @@ const LoopTimePicker = React.forwardRef((props, ref) => {
       use12Hours={effectiveUse12}
       showNow={false}
       /**
-       * needConfirm={true} - blocks auto-commit-on-close in rc-picker.
-       * We do NOT pass onOk: it is never called either on Enter or on close
-       * (verified by logging). The OK and "Now" buttons are drawn in panelRender
-       * and managed manually (see commitValue).
-       *
-       * IMPORTANT: if someone in the future adds onOk={onOk} - rc-picker will start
-       * committing the stale value on close and overwrite input.value.
-       * When upgrading antd/rc-picker - re-verify that input.value is not
-       * overwritten with the stale value.
+       * needConfirm={true} is required by AntD when the panel is replaced.
+       * We do NOT pass onOk: it is never called either on Enter or on close.
+       * The OK and "Now" buttons are drawn in panelRender and managed manually.
+       * See the note above the component regarding stale onChange events.
        */
       needConfirm={true}
       panelRender={panelRender}
