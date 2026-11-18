@@ -1,0 +1,25 @@
+name: Publish to npm
+on:
+  push:
+    tabs:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - name: Check tag matching package.json
+        run: test "v$(npm pkg get version | tr -d '"')" = "${{ github.ref_name }}"
+      - run: npm run build
+      - run: npm publish
